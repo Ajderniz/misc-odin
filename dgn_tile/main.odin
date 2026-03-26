@@ -1,10 +1,18 @@
 package dgn_tile
 
 import      "core:fmt"
+import      "core:log"
+import      "core:mem"
 import      "core:os"
 import path "core:path/filepath"
 import str  "core:strings"
 import rl   "vendor:raylib"
+
+MIN_ARGS_LEN   :: 2
+MAX_ARGS_LEN   :: 3
+REF_PATH_INDEX :: 1
+OUT_PATH_INDEX :: 2
+SUFFIX         :: ".dgn_tile"
 
 skew :: proc(ref: rl.Image, p_offset_end: i32, new_height: i32) -> rl.Image
 {
@@ -81,15 +89,32 @@ skew :: proc(ref: rl.Image, p_offset_end: i32, new_height: i32) -> rl.Image
 
 main :: proc()
 {
-  if len(os.args) < 2 || 3 < len(os.args)
+  if len(os.args) < MIN_ARGS_LEN || MAX_ARGS_LEN < len(os.args)
   {
     fmt.println("Usage: dgn_tile [img file path] [opt: output path]")
     os.exit(1)
   }
 
+  /* Debug-mode tracking alloctor, also inspired by Karl Zylinski */
+  when ODIN_DEBUG
+  {
+    tracking_allocator: mem.Tracking_Allocator
+    mem.tracking_allocator_init(&tracking_allocator, context.allocator)
+    context.allocator = mem.tracking_allocator(&tracking_allocator)
+
+    defer
+    {
+      for _, entry in tracking_allocator.allocation_map
+      {
+        log.warnf("%v BYTES LEAKED AT %v\n", entry.size, entry.location)
+      }
+      mem.tracking_allocator_destroy(&tracking_allocator)
+    }
+  }
+
   ref: rl.Image
   {
-    img_path := str.clone_to_cstring(os.args[1])
+    img_path := str.clone_to_cstring(os.args[REF_PATH_INDEX])
     ref = rl.LoadImage(img_path)
     if !rl.IsImageValid(ref)
     {
@@ -147,7 +172,16 @@ main :: proc()
   y += f32(h_1_4);      draw_row(&tileset, ref, 0, y, w_3_4, h_3_4) //x:-1, z:-1
   y += f32(h_3_4);      draw_row(&tileset, ref, 0, y,-w_1_4, h_3_4) //x:+1, z:-1
 
-  out_path := (len(os.args) == 3) ? os.args[2] : path.base(os.args[1])
+  out_path: string
+  if len(os.args) == MAX_ARGS_LEN
+  {
+    out_path = os.args[OUT_PATH_INDEX]
+  }
+  else
+  {
+    base := path.base(os.args[REF_PATH_INDEX])
+    out_path = str.join({path.short_stem(base), SUFFIX, path.long_ext(base)},"")
+  }
   out_base_cstring := str.clone_to_cstring(out_path)
   ok := rl.ExportImage(tileset, out_base_cstring)
   if !ok
