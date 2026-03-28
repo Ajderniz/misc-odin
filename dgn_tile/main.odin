@@ -37,7 +37,7 @@ skew :: proc(ref: rl.Image, p_offset_end: i32, new_height: i32) -> rl.Image
   }
 
   resized := rl.ImageCopy(ref)
-  rl.ImageResizeNN(&resized, img.width, img.height)
+  rl.ImageResize(&resized, img.width, img.height)
   defer rl.UnloadImage(resized)
 
   width_cur  := ref.width
